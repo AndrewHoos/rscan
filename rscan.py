@@ -154,7 +154,7 @@ def incrementCoordinateInLineByStep(line, coordinate, stepSize):
 	
 	return returnLine
 	
-def lineFromLastOutput(curprint("XXX"+line):
+def lineFromLastOutput(currentFileName,line,dataRow):
 	returnLine = ""
 	if dataRow == FIRST_COORD_ROW:
 		nonCoordinates =re.split("\d+\.\d+",line)
@@ -405,23 +405,23 @@ def askForCoordinateStepAndStepCount():
 		
 			
 	
-prepareNextFile("scan1.inp",1,.1)
 
 
-# #ask which coordinate to scan over
-# scan = askForCoordinateStepAndStepCount()
-# 
-# #prepare and run the first file
-# currentFileName = prepareFirstFile(scan[0], scan[2])
-# 
-# runFile(currentFileName)
-# 
-# # for each step 
-# # note: the - 1 is for the first file prepared
-# 
-# for i in range(scan[1]-1):
-# 	currentFileName = prepareNextFile(currentFileName, scan[0], scan[2])
-# 	runFile(currentFileName)
+
+#ask which coordinate to scan over
+scan = askForCoordinateStepAndStepCount()
+
+#prepare and run the first file
+currentFileName = prepareFirstFile(scan[0], scan[2])
+
+runFile(currentFileName)
+
+# for each step 
+# note: the - 1 is for the first file prepared
+
+for i in range(scan[1]-1):
+	currentFileName = prepareNextFile(currentFileName, scan[0], scan[2])
+	runFile(currentFileName)
 	
 
 	
