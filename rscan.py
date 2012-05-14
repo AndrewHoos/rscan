@@ -18,7 +18,7 @@ from subprocess import call
 
 #CONSTANTS 
 SCR_LOCATION = "~/Desktop/gamess/scr/"
-
+FIRST_COORD_ROW = 5
 
 
 
@@ -67,6 +67,29 @@ def DETGroup(DET):
 	outString += str(DET[2])
 	outString += " $END\n"
 	return outString
+
+# takes the name of the last input file opens the corresponding out file and returns the 
+# optimized coordinate
+def readCoordinateFromLastFile(lastFile,coordinate):
+
+	outFileName = re.sub(".inp", ".out",lastFile)
+	outFile = open(outFileName)
+	
+	cIndex=0
+	startCount=0
+	for line in outFile:
+		if re.search("EQUILIBRIUM GEOMETRY LOCATED",line):
+			startCount=1
+		if startCount == 5:
+			if re.match(" *\d.*\d+\.\d+ +(\d+\.\d+)",line):
+				cIndex+=1
+				if cIndex==coordinate:
+					return re.match(" *\d.*\d+\.\d+ +(\d+\.\d+)",line).group(1)
+			else:
+				startCount =0
+		if startCount> 0 and startCount<5:
+			if re.search("-+\n",line):
+				startCount+=1
 
 #returns a type of coordinate for a coordinate index
 def typeForCoordinateIndex(coordinateIndex):
@@ -131,7 +154,31 @@ def incrementCoordinateInLineByStep(line, coordinate, stepSize):
 	
 	return returnLine
 	
-	
+def lineFromLastOutput(curprint("XXX"+line):
+	returnLine = ""
+	if dataRow == FIRST_COORD_ROW:
+		nonCoordinates =re.split("\d+\.\d+",line)
+		returnLine += nonCoordinates[0]
+		returnLine += readCoordinateFromLastFile(currentFileName,1)
+		returnLine += "\n"
+	elif dataRow == FIRST_COORD_ROW + 1:
+		nonCoordinates =re.split("\d+\.\d+",line)
+		returnLine += nonCoordinates[0]
+		returnLine += readCoordinateFromLastFile(currentFileName,2)
+		returnLine += nonCoordinates[1]
+		returnLine += readCoordinateFromLastFile(currentFileName,3)
+		returnLine += "\n"
+	elif dataRow >= FIRST_COORD_ROW + 2:
+		nonCoordinates =re.split("\d+\.\d+",line)
+		returnLine += nonCoordinates[0]
+		returnLine += readCoordinateFromLastFile(currentFileName,3*dataRow-17)
+		returnLine += nonCoordinates[1]
+		returnLine += readCoordinateFromLastFile(currentFileName,3*dataRow-16)
+		returnLine += nonCoordinates[2]
+		returnLine += readCoordinateFromLastFile(currentFileName,3*dataRow-15)
+		returnLine += "\n"
+	return returnLine
+
 def prepareFirstFile(coordinate, stepSize):
 
 	
@@ -219,7 +266,7 @@ def prepareFirstFile(coordinate, stepSize):
 	outFile.close()
 	return currentFileName
 
-def prepareNextFile(currentFile, coordinateIndex, stepSize):
+def prepareNextFile(currentFileName, coordinateIndex, stepSize):
 	# open previous input file
 	inFile = open(currentFileName, 'r')
 	# create new input file 
@@ -227,17 +274,17 @@ def prepareNextFile(currentFile, coordinateIndex, stepSize):
 	
 	#find the coordinateRow
 	if (coordinateIndex-1)//3 > 0:
-		coordinateRow = 6 + (coordinateIndex-1)//3
+		coordinateRow = FIRST_COORD_ROW + 1 + (coordinateIndex-1)//3
 	elif (coordinateIndex-1)//3 == 0:
 		if coordinateIndex == 1:
-			coordinateRow = 5
+			coordinateRow = FIRST_COORD_ROW
 		else:
-			coordinateRow = 6
+			coordinateRow = FIRST_COORD_ROW + 1
 	else:
 		sys.exit()
 	
 	#copy file
-	dataIndex = 0
+	dataRow = 0
 	# copy 
 	for line in inFile:
 		#check for $DATA group
@@ -246,7 +293,7 @@ def prepareNextFile(currentFile, coordinateIndex, stepSize):
 		
 		#if line begins $DATA section
 		if dataMatch:
-			dataIndex += 1
+			dataRow += 1
 		
 	
 		#check for $END token	
@@ -254,25 +301,24 @@ def prepareNextFile(currentFile, coordinateIndex, stepSize):
 		endMatch = datagroup.search(line)
 		
 		#if the $END token is for the $DATA group then stop counting
-		if dataIndex  and endMatch:
-			dataIndex = 0
-			
+		if dataRow  and endMatch:
+			dataRow = 0
+
 		
 		#if inside the data group	
-		if dataIndex:
-
+		if dataRow:
+			
+			if dataRow >= FIRST_COORD_ROW and dataRow != coordinateRow:
+				line = lineFromLastOutput(currentFileName, line, dataRow)
 			#if we ne to increment a coorinate in this line
-			if dataIndex == coordinateRow:
+			if dataRow >= FIRST_COORD_ROW and dataRow == coordinateRow:
 				line = incrementCoordinateInLineByStep(line, coordinateIndex, stepSize)
 				
-			dataIndex += 1
-			
+			dataRow += 1
 			
 			
 		#Always write the line
 		outFile.write(line)
-	
-	
 	
 		
 	inFile.close()
@@ -355,20 +401,27 @@ def askForCoordinateStepAndStepCount():
 ##########################################
 
 
-#ask which coordinate to scan over
-scan = askForCoordinateStepAndStepCount()
+		
+		
+			
+	
+prepareNextFile("scan1.inp",1,.1)
 
-#prepare and run the first file
-currentFileName = prepareFirstFile(scan[0], scan[2])
 
-runFile(currentFileName)
-
-# for each step 
-# note: the - 1 is for the first file prepared
-
-for i in range(scan[1]-1):
-	currentFileName = prepareNextFile(currentFileName, scan[0], scan[2])
-	runFile(currentFileName)
+# #ask which coordinate to scan over
+# scan = askForCoordinateStepAndStepCount()
+# 
+# #prepare and run the first file
+# currentFileName = prepareFirstFile(scan[0], scan[2])
+# 
+# runFile(currentFileName)
+# 
+# # for each step 
+# # note: the - 1 is for the first file prepared
+# 
+# for i in range(scan[1]-1):
+# 	currentFileName = prepareNextFile(currentFileName, scan[0], scan[2])
+# 	runFile(currentFileName)
 	
 
 	
