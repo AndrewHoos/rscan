@@ -183,13 +183,10 @@ def prepareFirstFile(coordinate, stepSize):
 
 	
 	#openFirstFile
-	inFile = open(sys.argv[1], 'r')
-	
+	lastInFile = open(sys.argv[1], 'r')
 	#add the 1 postfix before file type e.g. test.inp > test1.inp
-	fileName = re.compile(r'([^\d]+)\.inp')
-	match = fileName.search(sys.argv[1])
-	currentFileName = (match.group(1)+"1"+".inp")
-	outFile = open(currentFileName, 'w')
+	nextInFileName = re.search("(.*)\.inp",sys.argv[1]).group(1)+"1"+".inp"
+	nextInFile = open(nextInFileName, 'w')
 	
 	
 	#find the coordinateRow
@@ -207,7 +204,7 @@ def prepareFirstFile(coordinate, stepSize):
 	dataIndex = 0
 	DET = [0,0,0]
 	
-	for line in inFile:
+	for line in lastInFile:
 		#check for $DATA group
 		datagroup = re.compile(r'\$DATA')
 		dataMatch = datagroup.search(line)
@@ -249,22 +246,22 @@ def prepareFirstFile(coordinate, stepSize):
 			
 			
 		#Always write the line
-		outFile.write(line)
+		nextInFile.write(line)
 		
 	#Increase MAXIT for convergence 
-	outFile.write(" $MCSCF MAXIT=100 $END\n")
+	nextInFile.write(" $MCSCF MAXIT=200 $END\n")
 	
 	#Freeze coorinate in STATPT
-	outFile.write(" $STATPT IFREEZ(1)=" +str(coordinate)+" $END\n")
+	nextInFile.write(" $STATPT IFREEZ(1)=" +str(coordinate)+" $END\n")
 	
 	
 	
 	# TODO: v0.2 add $GUESS group
 	#outFile.write(" $GUESS GUESS=MOREAD MORB="+str(orbitalCount)+" $END")
 	
-	inFile.close()
-	outFile.close()
-	return currentFileName
+	lastInFile.close()
+	nextInFile.close()
+	return nextInFileName
 
 def prepareNextFile(currentFileName, coordinateIndex, stepSize):
 	# open previous input file
@@ -409,8 +406,8 @@ def askForCoordinateStepAndStepCount():
 
 
 #ask which coordinate to scan over
-scan = askForCoordinateStepAndStepCount()
-
+#scan = askForCoordinateStepAndStepCount()
+scan = [1,1,.1]
 #prepare and run the first file
 currentFileName = prepareFirstFile(scan[0], scan[2])
 
