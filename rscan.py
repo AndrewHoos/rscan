@@ -201,7 +201,7 @@ def prepareFirstFile(coordinate, stepSize):
 		sys.exit()
 	
 	#copy file
-	dataIndex = 0
+	dataRow = 0
 	DET = [0,0,0]
 	
 	for line in lastInFile:
@@ -211,7 +211,7 @@ def prepareFirstFile(coordinate, stepSize):
 		
 		#if line begins $DATA section
 		if dataMatch:
-			dataIndex += 1
+			dataRow += 1
 		
 	
 		#check for $END token	
@@ -219,29 +219,33 @@ def prepareFirstFile(coordinate, stepSize):
 		endMatch = datagroup.search(line)
 		
 		#if the $END token is for the $DATA group then stop counting
-		if dataIndex  and endMatch:
-			dataIndex = 0
-			
-			
+		if dataRow  and endMatch:
+			dataRow = 0
 			# This code was removed because it is assumed that the 
 			# starting file is already minimzed and thus must have a
 			# DET group if needed
 			
-			#write the last line and replace it with the DET group
+			#DET
+			##write the last line and replace it with the DET group
 			#outFile.write(line)
 			#line = DETGroup(DET)
+			#END DET
 		
 		#if inside the data group	
-		if dataIndex:
+		if dataRow:
 
+			if dataRow >= FIRST_COORD_ROW and dataRow != coordinateRow:
+				line = lineFromLastOutput(currentFileName, line, dataRow)
 			#if we ne to increment a coorinate in this line
-			if dataIndex == coordinateRow:
-				line = incrementCoordinateInLineByStep(line, coordinate, stepSize)
+			if dataRow >= FIRST_COORD_ROW and dataRow == coordinateRow:
+				line = incrementCoordinateInLineByStep(line, coordinateIndex, stepSize)
 				
 				
-			if dataIndex >= 4:
-				DET = tuple(map(sum,zip(DET,DETParse(line))))		
-			dataIndex += 1
+			if dataRow >= FIRST_COORD_ROW-1:
+				#DET
+				#DET = tuple(map(sum,zip(DET,DETParse(line))))	
+				#END DET
+			dataRow += 1
 			
 			
 			
@@ -340,7 +344,7 @@ def askForCoordinateStepAndStepCount():
 	inFile = open(sys.argv[1], 'r')
 	
 	print("The Data section of the input file is listed below:")
-	dataIndex = 0
+	dataRow = 0
 	for line in inFile:
 		#check for $DATA group
 		datagroup = re.compile(r'\$DATA')
@@ -348,22 +352,22 @@ def askForCoordinateStepAndStepCount():
 		
 		#if line begins $DATA section
 		if dataMatch:
-			dataIndex += 1
+			dataRow += 1
 			
 		#check for $END token	
 		datagroup = re.compile(r'\$END')
 		endMatch = datagroup.search(line)
 		
 		#if the $END token is for the $DATA group then stop counting
-		if dataIndex  and endMatch:
+		if dataRow  and endMatch:
 			sys.stdout.write(line)
-			dataIndex = 0
+			dataRow = 0
 			
 		
 		#if inside the data group	
-		if dataIndex:
+		if dataRow:
 			sys.stdout.write(line)
-			dataIndex += 1
+			dataRow += 1
 	
 	inFile.close()
 
