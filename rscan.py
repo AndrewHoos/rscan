@@ -446,8 +446,8 @@ def askForCoordinateStepAndStepCount():
 
 
 #ask which coordinate to scan over
-#scan = askForCoordinateStepAndStepCount()
-scan = [1,1,.1]
+scan = askForCoordinateStepAndStepCount()
+#scan = [1,1,.1]
 #prepare and run the first file
 currentFileName = prepareFirstFile(scan[0], scan[2])
 
