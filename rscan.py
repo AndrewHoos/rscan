@@ -124,34 +124,64 @@ def numberForCoordinateIndex(coordinateIndex):
 		sys.exit()
 
 #increments the coordinate corresponding to coordinateIndex in a row of the DATA group by stepSize
-def incrementCoordinateInLineByStep(line, coordinate, stepSize):
+def incrementCoordinateInLineByStep(currentFile, line, coordinate, stepSize):
 	
-	#finds the column of the coordinate
+	#finds the type and row
 	type = typeForCoordinateIndex(coordinate)
-	if type == "bond":
-		column = 1
-	elif type == "angle":
-		column = 3
-	else:
-		column = 5	
-
-	splitLine = re.split('(\d+ +\d+\.\d+)', line)
+	dataRow = dataRowForCoordinate(coordinate)
 	
-	##add beginning of line
-	returnLine=""
-	for i in range(column):
-		returnLine+=splitLine[i]
 	
-	#increment coordinate
-	splitCoordinate = re.split('( +)',splitLine[column])
-	returnLine +=splitCoordinate[0]
-	returnLine +=splitCoordinate[1]
-	returnLine +=str( float(splitCoordinate[2]) + stepSize)
 	
-	#add rest of line
-	for i in range(column+1,len(splitLine)):
-		returnLine+=splitLine[i]	
+	returnLine = ""
+	if dataRow == FIRST_COORD_ROW:
+		nonCoordinates =re.split("\d+\.\d+",line)
+		returnLine += nonCoordinates[0]
+		returnLine += str(float(readCoordinateFromLastFile(currentFileName,1)+ stepsize))
+		returnLine += "\n"
+	elif dataRow == FIRST_COORD_ROW + 1:
+		
+		nonCoordinates =re.split("\d+\.\d+",line)
+		returnLine += nonCoordinates[0]
+		
+		if type == "bond":
+			returnLine += str(float(readCoordinateFromLastFile(currentFileName,2)+ stepsize))
+		else:
+			returnLine += readCoordinateFromLastFile(currentFileName,2)
+		
+		returnLine += nonCoordinates[1]
+		
+		if type == "angle":
+			returnLine += str(float(readCoordinateFromLastFile(currentFileName,3)+ stepsize))
+		else:
+			returnLine += readCoordinateFromLastFile(currentFileName,3)
+		
+		returnLine += "\n"
+		
+	elif dataRow >= FIRST_COORD_ROW + 2:
+		
+		nonCoordinates =re.split("\d+\.\d+",line)
+		returnLine += nonCoordinates[0]
+		
+		if type == "bond":
+			returnLine += str(float(readCoordinateFromLastFile(currentFileName,3*dataRow-17)+ stepsize))
+		else:
+			returnLine += readCoordinateFromLastFile(currentFileName,3*dataRow-17)
+		
+		returnLine += nonCoordinates[1]
+		
+		if type == "angle":
+			returnLine += str(float(readCoordinateFromLastFile(currentFileName,3*dataRow-16)+ stepsize))
+		else:
+			returnLine += readCoordinateFromLastFile(currentFileName,3*dataRow-16)
 	
+		returnLine += nonCoordinates[2]
+		
+		if type == "dihedral":
+			returnLine += str(float(readCoordinateFromLastFile(currentFileName,3*dataRow-15)+ stepsize))
+		else:
+			returnLine += readCoordinateFromLastFile(currentFileName,3*dataRow-15)
+		returnLine += "\n"
+		
 	return returnLine
 	
 def lineFromLastOutput(currentFileName,line,dataRow):
@@ -267,6 +297,21 @@ def prepareFirstFile(coordinate, stepSize):
 	nextInFile.close()
 	return nextInFileName
 
+#returns the line number in the data group of the coordinate number
+def dataRowForCoordinate(coordinate):
+	row = 0
+	if (coordinate-1)//3 > 0:
+		row = FIRST_COORD_ROW + 1 + (coordinate-1)//3
+	elif (coordinate-1)//3 == 0:
+		if coordinateIndex == 1:
+			row = FIRST_COORD_ROW
+		else:
+			row = FIRST_COORD_ROW + 1
+	else:
+		sys.exit()
+	return row 
+
+
 def prepareNextFile(currentFileName, coordinateIndex, stepSize):
 	# open previous input file
 	inFile = open(currentFileName, 'r')
@@ -274,15 +319,7 @@ def prepareNextFile(currentFileName, coordinateIndex, stepSize):
 	outFile = open(increment(currentFileName), 'w')
 	
 	#find the coordinateRow
-	if (coordinateIndex-1)//3 > 0:
-		coordinateRow = FIRST_COORD_ROW + 1 + (coordinateIndex-1)//3
-	elif (coordinateIndex-1)//3 == 0:
-		if coordinateIndex == 1:
-			coordinateRow = FIRST_COORD_ROW
-		else:
-			coordinateRow = FIRST_COORD_ROW + 1
-	else:
-		sys.exit()
+	coordinateRow = dataRowForCoordinate(coordinateIndex)
 	
 	#copy file
 	dataRow = 0
