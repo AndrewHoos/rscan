@@ -1,8 +1,11 @@
+#! /usr/local/bin/python3
+
 ## Author: Andrew Hoos
 ## File: rscan.py
 ## Purpose: the purpose of this script is to take a GAMESS file and scan over one of the coordinates 
 ## Limitations: The input file must be a GAMESS input file prepared for execution with the geometry of an optimized minimum 
 ## usage: python3 rscan.py molecule.inp > molecule.log
+## or rscan.py molecule.inp > molecule.log
 ## Version: 0.1
 ## Last edited: 5/10/12
 
@@ -20,7 +23,51 @@ from subprocess import call
 SCR_LOCATION = "~/Desktop/gamess/scr/"
 FIRST_COORD_ROW = 5
 
+#returns the line number in the data group of the coordinate number
+def dataRowForCoordinate(coordinate):
+	row = 0
+	if (coordinate-1)//3 > 0:
+		row = FIRST_COORD_ROW + 1 + (coordinate-1)//3
+	elif (coordinate-1)//3 == 0:
+		if coordinate == 1:
+			row = FIRST_COORD_ROW
+		else:
+			row = FIRST_COORD_ROW + 1
+	else:
+		sys.exit()
+	return row 
 
+#returns a type of coordinate for a coordinate index
+def typeForCoordinateIndex(coordinateIndex):
+	if coordinateIndex%3==1 or  coordinateIndex==2:
+		return "bond"
+	elif coordinateIndex%3==2 and coordinateIndex>3 or coordinateIndex ==3: 
+		return "angle"
+	elif coordinateIndex%3==0 and coordinateIndex>3:
+		return "dihedral"
+	else:
+		return "error"
+
+#return coordinate number for a coordinate index
+# e.g. numberForCoordinateIndex(3) returns 1 for the the first angle
+def numberForCoordinateIndex(coordinateIndex):
+	type = typeForCoordinateIndex(coordinateIndex)
+	#print("hey " + type)
+	if type == "bond":
+		if coordinateIndex > 3:
+			return coordinateIndex//3 + 2
+		else:
+			return coordinateIndex
+	elif type == "angle":
+		if coordinateIndex > 3:
+			return coordinateIndex//3+1
+		else:
+			return 1
+	elif type == "dihedral":
+		return coordinateIndex//3 - 1
+	else:
+		print("numberForCoordinateIndex: invalid type")
+		sys.exit()
 
 #Found on http://code.activestate.com/recipes/442460-increment-numbers-in-a-string/
 def increment(s):
@@ -70,77 +117,99 @@ def DETGroup(DET):
 
 # takes the name of the last input file opens the corresponding out file and returns the 
 # optimized coordinate
-def readCoordinateFromLastFile(lastFile,coordinate):
-
-	outFileName = re.sub(".inp", ".out",lastFile)
-	outFile = open(outFileName)
+def readCoordinateFromLastFile(lastFileName,coordinate):
 	
-	cIndex=0
-	startCount=0
-	for line in outFile:
+	try:
+		lastOutFile = open(re.sub("\.inp", ".out",lastFileName))
+	except IOError as e:
+		try:
+			lastOutFile = open(re.sub("\.inp", ".log",lastFileName))
+		except IOError as e:
+			print("I was unable to find the output for the lastFile")
+			print(lastFileName)
+			print(re.sub("\.inp", ".log",lastFileName))
+			sys.exit()
+	
+	
+
+	
+	
+	coordinateLineNumber = dataRowForCoordinate(coordinate)	
+	coordinateType = typeForCoordinateIndex(coordinate)
+	lineNumber=0
+	flag=False
+	returnLine=""
+	
+	
+	for line in lastOutFile:
 		if re.search("EQUILIBRIUM GEOMETRY LOCATED",line):
-			startCount=1
-		if startCount == 5:
-			if re.match(" *\d.*\d+\.\d+ +(\d+\.\d+)",line):
-				cIndex+=1
-				if cIndex==coordinate:
-					return re.match(" *\d.*\d+\.\d+ +(\d+\.\d+)",line).group(1)
-			else:
-				startCount =0
-		if startCount> 0 and startCount<5:
-			if re.search("-+\n",line):
-				startCount+=1
+			flag=True
+		
+		
+		if flag and re.search("THE CURRENT FULLY SUBSTITUTED Z-MATRIX IS",line):
+			flag = False
+			lineNumber=FIRST_COORD_ROW-2
+			
+		if lineNumber == coordinateLineNumber:
+			if lineNumber == FIRST_COORD_ROW:
+				returnLine = re.match(".*(\d+\.\d+)",line).group(1)
+			elif lineNumber == FIRST_COORD_ROW + 1:
+				if coordinateType == "bond":
+					returnLine = re.match(".*(\d+\.\d+).* +(-?\d+\.\d+)",line).group(1)
+				else:
+					returnLine = re.match(".*(\d+\.\d+).* +(-?\d+\.\d+)",line).group(2)
+			elif lineNumber >= FIRST_COORD_ROW + 2:
+				if coordinateType == "bond":
 
-#returns a type of coordinate for a coordinate index
-def typeForCoordinateIndex(coordinateIndex):
-	if coordinateIndex%3==1 or  coordinateIndex==2:
-		return "bond"
-	elif coordinateIndex%3==2 and coordinateIndex>3 or coordinateIndex ==3: 
-		return "angle"
-	elif coordinateIndex%3==0 and coordinateIndex>3:
-		return "dihedral"
-	else:
-		return "error"
+					returnLine = re.match(".* +(\d+\.\d+).* +(-?\d+\.\d+).* +(-?\d+\.\d+)",line).group(1)
+				elif coordinateType == "angle":
+					returnLine = re.match(".* +(\d+\.\d+).* +(-?\d+\.\d+).* +(-?\d+\.\d+)",line).group(2)
+				else:
+					returnLine = re.match(".* +(\d+\.\d+).* +(-?\d+\.\d+).* +(-?\d+\.\d+)",line).group(3)
+			
+		if lineNumber:
+			lineNumber+=1
+	print(returnLine)
+	lastOutFile.close()	
+	return returnLine
 
-#return coordinate number for a coordinate index
-# e.g. numberForCoordinateIndex(3) returns 1 for the the first angle
-def numberForCoordinateIndex(coordinateIndex):
-	type = typeForCoordinateIndex(coordinateIndex)
-	#print("hey " + type)
-	if type == "bond":
-		if coordinateIndex > 3:
-			return coordinateIndex//3 + 2
-		else:
-			return coordinateIndex
-	elif type == "angle":
-		if coordinateIndex > 3:
-			return coordinateIndex//3+1
-		else:
-			return 1
-	elif type == "dihedral":
-		return coordinateIndex//3 - 1
-	else:
-		print("numberForCoordinateIndex: invalid type")
-		sys.exit()
+# This works but for a different file type
+
+# 	cIndex=0
+# 	startCount=0
+# 	for line in lastOutFile:
+# 		if re.search("EQUILIBRIUM GEOMETRY LOCATED",line):
+# 			startCount=1
+# 		if startCount == 5:
+# 			if re.match(" *\d.*\d+\.\d+ +(\d+\.\d+)",line):
+# 				cIndex+=1
+# 				if cIndex==coordinate:
+# 					lastOutFile.close()
+# 					return re.match(" *\d.*\d+\.\d+ +(\d+\.\d+)",line).group(1)
+# 			else:
+# 				startCount =0
+# 		if startCount> 0 and startCount<5:
+# 			if re.search("-+\n",line):
+# 				startCount+=1
+				
 
 #increments the coordinate corresponding to coordinateIndex in a row of the DATA group by stepSize
 def lineFromLastOutputWithIncrement(lastInFileName, line, coordinate, stepSize):
 	
 	#finds the type and row
 	type = typeForCoordinateIndex(coordinate)
-	dataRow = dataRowForCoordinate(coordinate)
+	dataRow = dataRowForCoordinate(coordinate)	
 	
-	
-	
+
 	returnLine = ""
 	if dataRow == FIRST_COORD_ROW:
-		nonCoordinates =re.split("\d+\.\d+",line)
+		nonCoordinates =re.split("-?\d+\.\d+",line)
 		returnLine += nonCoordinates[0]
 		returnLine += str(float(readCoordinateFromLastFile(lastInFileName,1))+ stepSize)
 		returnLine += "\n"
 	elif dataRow == FIRST_COORD_ROW + 1:
 		
-		nonCoordinates =re.split("\d+\.\d+",line)
+		nonCoordinates =re.split("-?\d+\.\d+",line)
 		returnLine += nonCoordinates[0]
 		
 		if type == "bond":
@@ -159,7 +228,7 @@ def lineFromLastOutputWithIncrement(lastInFileName, line, coordinate, stepSize):
 		
 	elif dataRow >= FIRST_COORD_ROW + 2:
 		
-		nonCoordinates =re.split("\d+\.\d+",line)
+		nonCoordinates =re.split("-?\d+\.\d+",line)
 		returnLine += nonCoordinates[0]
 		
 		if type == "bond":
@@ -192,14 +261,14 @@ def lineFromLastOutput(lastInFileName,line,dataRow):
 		returnLine += readCoordinateFromLastFile(lastInFileName,1)
 		returnLine += "\n"
 	elif dataRow == FIRST_COORD_ROW + 1:
-		nonCoordinates =re.split("\d+\.\d+",line)
+		nonCoordinates =re.split("-?\d+\.\d+",line)
 		returnLine += nonCoordinates[0]
 		returnLine += readCoordinateFromLastFile(lastInFileName,2)
 		returnLine += nonCoordinates[1]
 		returnLine += readCoordinateFromLastFile(lastInFileName,3)
 		returnLine += "\n"
 	elif dataRow >= FIRST_COORD_ROW + 2:
-		nonCoordinates =re.split("\d+\.\d+",line)
+		nonCoordinates =re.split("-?\d+\.\d+",line)
 		returnLine += nonCoordinates[0]
 		returnLine += readCoordinateFromLastFile(lastInFileName,3*dataRow-17)
 		returnLine += nonCoordinates[1]
@@ -283,6 +352,7 @@ def prepareFirstFile(coordinate, stepSize):
 		
 	#Increase MAXIT for convergence 
 	nextInFile.write(" $MCSCF MAXIT=200 $END\n")
+	nextInFile.write(" $CONTRL MAXIT=200 $END\n")
 	
 	#Freeze coorinate in STATPT
 	nextInFile.write(" $STATPT IFREEZ(1)=" +str(coordinate)+" $END\n")
@@ -296,72 +366,47 @@ def prepareFirstFile(coordinate, stepSize):
 	nextInFile.close()
 	return nextInFileName
 
-#returns the line number in the data group of the coordinate number
-def dataRowForCoordinate(coordinate):
-	row = 0
-	if (coordinate-1)//3 > 0:
-		row = FIRST_COORD_ROW + 1 + (coordinate-1)//3
-	elif (coordinate-1)//3 == 0:
-		if coordinate == 1:
-			row = FIRST_COORD_ROW
-		else:
-			row = FIRST_COORD_ROW + 1
-	else:
-		sys.exit()
-	return row 
-
-
-def prepareNextFile(currentFileName, coordinateIndex, stepSize):
-	# open previous input file
-	inFile = open(currentFileName, 'r')
-	# create new input file 
-	outFile = open(increment(currentFileName), 'w')
+def prepareNextFile(LastInputFileName, coordinateNumber, stepSize):
 	
-	#find the coordinateRow
-	coordinateRow = dataRowForCoordinate(coordinateIndex)
+	# open source file and destination file
+	lastInputFile = open(LastInputFileName, 'r')
+	nextInputFile = open(increment(LastInputFileName), 'w')
+	
+	#find the line number for the specified coordinate
+	coordinateLineNumber = dataRowForCoordinate(coordinateNumber)
 	
 	#copy file
-	dataRow = 0
-	# copy 
-	for line in inFile:
-		#check for $DATA group
-		datagroup = re.compile(r'\$DATA')
-		dataMatch = datagroup.search(line)
+	lineNumber = 0
+	for line in lastInputFile:
 		
 		#if line begins $DATA section
-		if dataMatch:
-			dataRow += 1
-		
-	
-		#check for $END token	
-		datagroup = re.compile(r'\$END')
-		endMatch = datagroup.search(line)
+		if re.search("\$DATA",line):
+			lineNumber += 1
 		
 		#if the $END token is for the $DATA group then stop counting
-		if dataRow  and endMatch:
-			dataRow = 0
+		if lineNumber  and re.search("\$END",line):
+			lineNumber = 0
 
 		
 		#if inside the data group	
-		if dataRow:
+		if lineNumber:
 			
-			if dataRow >= FIRST_COORD_ROW and dataRow != coordinateRow:
-				line = lineFromLastOutput(currentFileName, line, dataRow)
+			if lineNumber >= FIRST_COORD_ROW and lineNumber != coordinateLineNumber:
+				line = lineFromLastOutput(LastInputFileName, line, lineNumber)
 			#if we ne to increment a coorinate in this line
-			if dataRow >= FIRST_COORD_ROW and dataRow == coordinateRow:
-				line = lineFromLastOutputWithIncrement(line, coordinateIndex, stepSize)
+			if lineNumber >= FIRST_COORD_ROW and lineNumber == coordinateLineNumber:
+				line = lineFromLastOutputWithIncrement(LastInputFileName, line, coordinateNumber, stepSize)
 				
-			dataRow += 1
+			lineNumber += 1
 			
 			
-		#Always write the line
-		outFile.write(line)
+		nextInputFile.write(line)
 	
 		
-	inFile.close()
-	outFile.close()
+	lastInputFile.close()
+	nextInputFile.close()
 
-	return increment(currentFileName)
+	return increment(LastInputFileName)
 	
 def outFile(inFileName):
 	print(inFileName)
@@ -447,16 +492,15 @@ def askForCoordinateStepAndStepCount():
 
 #ask which coordinate to scan over
 scan = askForCoordinateStepAndStepCount()
-#scan = [1,1,.1]
+#scan = [1,25,.1]
 #prepare and run the first file
 currentFileName = prepareFirstFile(scan[0], scan[2])
 
 runFile(currentFileName)
 
-# for each step 
-# note: the - 1 is for the first file prepared
 
-for i in range(scan[1]-1):
+# for each step 
+for i in range(scan[1]):
 	currentFileName = prepareNextFile(currentFileName, scan[0], scan[2])
 	runFile(currentFileName)
 	
