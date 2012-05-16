@@ -52,7 +52,6 @@ def typeForCoordinateIndex(coordinateIndex):
 # e.g. numberForCoordinateIndex(3) returns 1 for the the first angle
 def numberForCoordinateIndex(coordinateIndex):
 	type = typeForCoordinateIndex(coordinateIndex)
-	#print("hey " + type)
 	if type == "bond":
 		if coordinateIndex > 3:
 			return coordinateIndex//3 + 2
@@ -132,7 +131,7 @@ def readCoordinateFromLastFile(lastFileName,coordinate):
 	
 	
 
-	
+	##Two competing file types
 	
 	coordinateLineNumber = dataRowForCoordinate(coordinate)	
 	coordinateType = typeForCoordinateIndex(coordinate)
@@ -140,17 +139,26 @@ def readCoordinateFromLastFile(lastFileName,coordinate):
 	flag=False
 	returnLine=""
 	
+	ZMATMode=False
+	COORDMode=False
 	
+	dashedLineCount=0
+	coordinateLineCount=0
 	for line in lastOutFile:
+	
+		#found equilibrium geometry
 		if re.search("EQUILIBRIUM GEOMETRY LOCATED",line):
 			flag=True
+			dashedLineCount=1
 		
-		
+		##if the coordinates in ZMatrix mode use this 
 		if flag and re.search("THE CURRENT FULLY SUBSTITUTED Z-MATRIX IS",line):
+			ZMATMode=True
 			flag = False
 			lineNumber=FIRST_COORD_ROW-2
 			
-		if lineNumber == coordinateLineNumber:
+			
+		if lineNumber == coordinateLineNumber and ZMATMode:
 			if lineNumber == FIRST_COORD_ROW:
 				returnLine = re.match(".*(\d+\.\d+)",line).group(1)
 			elif lineNumber == FIRST_COORD_ROW + 1:
@@ -169,28 +177,35 @@ def readCoordinateFromLastFile(lastFileName,coordinate):
 			
 		if lineNumber:
 			lineNumber+=1
-	print(returnLine)
-	lastOutFile.close()	
-	return returnLine
+		
+		
+		#if the coordinates are given in list mode
+		if flag and re.search("INTERNAL COORDINATES",line):
+			COORMode = True
+			flag = False
+		
+		
+		if dashedLineCount == 5:
+			if re.match(" *\d.*\d+\.\d+ +(-?\d+\.\d+)",line):
+				coordinateLineCount+=1
+				if coordinateLineCount==coordinate:
+					returnLine = re.match(" *\d.*\d+\.\d+ +(-?\d+\.\d+)",line).group(1)
+			else:
+				dashedLineCount = 0
+		
+		if dashedLineCount> 0 and dashedLineCount<5:
+			if re.search("-+\n",line):
+				dashedLineCount+=1
+			
+	if returnLine == "":
+		print("The last file did not converge")
+		sys.exit()
+	else:	
+		lastOutFile.close()	
+		return returnLine
 
-# This works but for a different file type
 
-# 	cIndex=0
-# 	startCount=0
-# 	for line in lastOutFile:
-# 		if re.search("EQUILIBRIUM GEOMETRY LOCATED",line):
-# 			startCount=1
-# 		if startCount == 5:
-# 			if re.match(" *\d.*\d+\.\d+ +(\d+\.\d+)",line):
-# 				cIndex+=1
-# 				if cIndex==coordinate:
-# 					lastOutFile.close()
-# 					return re.match(" *\d.*\d+\.\d+ +(\d+\.\d+)",line).group(1)
-# 			else:
-# 				startCount =0
-# 		if startCount> 0 and startCount<5:
-# 			if re.search("-+\n",line):
-# 				startCount+=1
+
 				
 
 #increments the coordinate corresponding to coordinateIndex in a row of the DATA group by stepSize
@@ -409,13 +424,10 @@ def prepareNextFile(LastInputFileName, coordinateNumber, stepSize):
 	return increment(LastInputFileName)
 	
 def outFile(inFileName):
-	print(inFileName)
 	return re.sub(r'.inp', r'.log',inFileName)
 	
 def runFile(inFileName):
 	outFileName = outFile(inFileName)
-	print(outFileName)
-	
 	call(["rungms", str(inFileName)] ,stdout = open(str(outFileName),"w")  )
 	
 # returns a list containing coordinate step size and step count 
@@ -491,8 +503,8 @@ def askForCoordinateStepAndStepCount():
 
 
 #ask which coordinate to scan over
-scan = askForCoordinateStepAndStepCount()
-#scan = [1,25,.1]
+#scan = askForCoordinateStepAndStepCount()
+scan = [2,50,.02]
 #prepare and run the first file
 currentFileName = prepareFirstFile(scan[0], scan[2])
 
