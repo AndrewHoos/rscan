@@ -1,6 +1,7 @@
 #! /usr/local/bin/python3
 
 import sys
+import re
 
 bond="bond"
 
@@ -10,6 +11,7 @@ dihedral="dihedral"
 
 FIRST_COORD_LINE=5
 
+SCR_PATH="/Users/mac/Desktop/gamess/scr/"
 # coordinate type for coordinate
 # expects a positive integer
 # returns a string
@@ -51,7 +53,7 @@ def coordinateNumber(coordinate):
 # Expects a positive integer
 # Returns a positive integer
 # Note: The line number is numbered from the beginning of the $DATA group
-def CoordinateLine(coordinate):
+def coordinateLine(coordinate):
 	line = 0
 	if (coordinate-1)//3 > 0:
 		line = FIRST_COORD_LINE + 1 + (coordinate-1)//3
@@ -66,3 +68,39 @@ def CoordinateLine(coordinate):
 		sys.exit()
 	
 	return line 
+	
+# Returns a list of $VEC groups from a dat file 
+# Expects a string
+# Returns a list of strings
+def readVECGroupsFromFile(fileName):
+	
+	#open the file
+	if re.search("\.dat",fileName):
+		file = open(SCR_PATH+fileName, "r")
+	else:
+		file = open(SCR_PATH+fileName+".dat", "r")
+	
+	VECList=[]
+	VECNumber=0
+	lineNumber=0
+	for line in file:
+		
+		if re.search("\$VEC",line):
+			VECList.append("")
+			lineNumber+=1
+					
+		if re.search("END",line) and lineNumber:
+			VECList[VECNumber]+=line
+			VECNumber+=1
+			lineNumber=0
+			
+		if lineNumber:
+			VECList[VECNumber]+=line
+			lineNumber+=1
+			
+	file.close()
+	return VECList
+			
+			
+			
+			
