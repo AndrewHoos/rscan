@@ -21,7 +21,6 @@ from subprocess import call
 import GAMESS
 
 #CONSTANTS 
-SCR_LOCATION = "~/Desktop/gamess/scr/"
 FIRST_COORD_LINE = 5
 
 #Found on http://code.activestate.com/recipes/442460-increment-numbers-in-a-string/
@@ -89,7 +88,7 @@ def readCoordinateFromLastFile(lastFileName,coordinate):
 
 	##Two competing file types
 	
-	coordinateLineNumber = GAMESS.CoordinateLine(coordinate)	
+	coordinateLineNumber = GAMESS.coordinateLine(coordinate)	
 	coordinateType = GAMESS.ZMATCoordinateType(coordinate)
 	lineNumber=0
 	flag=False
@@ -165,7 +164,7 @@ def lineFromLastOutputWithIncrement(lastInFileName, line, coordinate, stepSize):
 	
 	#finds the type and row
 	type = GAMESS.ZMATCoordinateType(coordinate)
-	dataRow = GAMESS.CoordinateLine(coordinate)	
+	dataRow = GAMESS.coordinateLine(coordinate)	
 	
 
 	returnLine = ""
@@ -249,6 +248,7 @@ def prepareFirstFile(coordinate, stepSize):
 	
 	#openFirstFile
 	lastInFile = open(sys.argv[1], 'r')
+	
 	#add the 1 postfix before file type e.g. test.inp > test1.inp
 	nextInFileName = re.search("(.*)\.inp",sys.argv[1]).group(1)+"1"+".inp"
 	nextInFile = open(nextInFileName, 'w')
@@ -256,7 +256,23 @@ def prepareFirstFile(coordinate, stepSize):
 	#copy file
 	coordinateLineNumber=GAMESS.coordinateLine(coordinate)
 	dataLineNumber = 0
+	vecGroupFlag=False
 	for line in lastInFile:
+		
+		#do not write VEC group start line
+		if re.search("\$VEC",line):
+			vecGroupFlag = True
+			continue
+		
+		#do not write VEC group end line
+		if vecGroupFlag and re.search("\$END",line):
+			vecFroupFlag = False
+			continue
+		
+		# do not write VEC group
+		if vecGroupFlag:
+			continue
+			
 		
 		#if line begins $DATA section
 		if re.search("\$DATA",line):
@@ -285,9 +301,13 @@ def prepareFirstFile(coordinate, stepSize):
 	#Freeze coorinate in STATPT
 	nextInFile.write(" $STATPT IFREEZ(1)=" +str(coordinate)+" $END\n")
 	
-	# TODO: v0.2 add $GUESS group
-	#outFile.write(" $GUESS GUESS=MOREAD MORB="+str(orbitalCount)+" $END")
+	#write the VEC group
+	if re.search("\.inp",sys.argv[1]):
+		nextInFile.write(GAMESS.readVECGroupsFromFile(re.sub("\.inp",".dat",sys.argv[1]))[-1])
+	else:
+		nextInFile.write(GAMESS.readVECGroupsFromFile(sys.argv[1])[-1])
 	
+	#close files
 	lastInFile.close()
 	nextInFile.close()
 	return nextInFileName
@@ -299,20 +319,35 @@ def prepareNextFile(LastInputFileName, coordinateNumber, stepSize):
 	nextInputFile = open(nextInputFleNameFromLastInputFileName(LastInputFileName), 'w')
 	
 	#copy file
-	coordinateLineNumber = GAMESS.CoordinateLine(coordinateNumber)
+	coordinateLineNumber = GAMESS.coordinateLine(coordinateNumber)
 	lineNumber = 0
+	vecGroupFlag=False
 	for line in lastInputFile:
 		
-		#if line begins $DATA section
+		#do not write VEC group start line
+		if re.search("\$VEC",line):
+			vecGroupFlag = True
+			continue
+		
+		#do not write VEC group end line
+		if vecGroupFlag and re.search("\$END",line):
+			vecFroupFlag = False
+			continue
+		
+		# do not write VEC group line
+		if vecGroupFlag:
+			continue
+		
+	
+		#if process DATA group start line
 		if re.search("\$DATA",line):
 			lineNumber += 1
 		
-		#if the $END token is for the $DATA group then stop counting
+		#if process DATA group end line
 		if lineNumber  and re.search("\$END",line):
 			lineNumber = 0
 
-		
-		#if inside the data group	
+		#if process DATA group line
 		if lineNumber:
 			
 			if lineNumber >= FIRST_COORD_LINE and lineNumber != coordinateLineNumber:
@@ -324,6 +359,8 @@ def prepareNextFile(LastInputFileName, coordinateNumber, stepSize):
 			
 		nextInputFile.write(line)
 	
+	# write VEC group
+	nextInputFile.write(GAMESS.readVECGroupsFromFile(re.sub("\.inp",".dat",LastInputFileName))[-1])
 		
 	lastInputFile.close()
 	nextInputFile.close()
@@ -411,9 +448,9 @@ currentFileName = prepareFirstFile(scan[0], scan[2])
 
 
 # for each step 
-for i in range(scan[1]):
-	currentFileName = prepareNextFile(currentFileName, scan[0], scan[2])
-	runFile(currentFileName)
+#for i in range(scan[1]):
+#	currentFileName = prepareNextFile(currentFileName, scan[0], scan[2])
+#	runFile(currentFileName)
 	
 
 	
