@@ -18,59 +18,15 @@ import sys
 import re
 import operator
 from subprocess import call
+import GAMESS
 
 #CONSTANTS 
 SCR_LOCATION = "~/Desktop/gamess/scr/"
 FIRST_COORD_ROW = 5
 
-#returns the line number in the data group of the coordinate number
-def dataRowForCoordinate(coordinate):
-	row = 0
-	if (coordinate-1)//3 > 0:
-		row = FIRST_COORD_ROW + 1 + (coordinate-1)//3
-	elif (coordinate-1)//3 == 0:
-		if coordinate == 1:
-			row = FIRST_COORD_ROW
-		else:
-			row = FIRST_COORD_ROW + 1
-	else:
-		sys.exit()
-	return row 
-
-#returns a type of coordinate for a coordinate index
-def typeForCoordinateIndex(coordinateIndex):
-	if coordinateIndex%3==1 or  coordinateIndex==2:
-		return "bond"
-	elif coordinateIndex%3==2 and coordinateIndex>3 or coordinateIndex ==3: 
-		return "angle"
-	elif coordinateIndex%3==0 and coordinateIndex>3:
-		return "dihedral"
-	else:
-		return "error"
-
-#return coordinate number for a coordinate index
-# e.g. numberForCoordinateIndex(3) returns 1 for the the first angle
-def numberForCoordinateIndex(coordinateIndex):
-	type = typeForCoordinateIndex(coordinateIndex)
-	if type == "bond":
-		if coordinateIndex > 3:
-			return coordinateIndex//3 + 2
-		else:
-			return coordinateIndex
-	elif type == "angle":
-		if coordinateIndex > 3:
-			return coordinateIndex//3+1
-		else:
-			return 1
-	elif type == "dihedral":
-		return coordinateIndex//3 - 1
-	else:
-		print("numberForCoordinateIndex: invalid type")
-		sys.exit()
-
 #Found on http://code.activestate.com/recipes/442460-increment-numbers-in-a-string/
-def increment(s):
-    """ look for the last sequence of number(s) in a string and increment """
+def nextInputFleNameFromLastInputFileName(s):
+   
     lastNum = re.compile(r'(?:[^\d]*(\d+)[^\d]*)+')
     match = lastNum.search(s)
     if match:
@@ -133,8 +89,8 @@ def readCoordinateFromLastFile(lastFileName,coordinate):
 
 	##Two competing file types
 	
-	coordinateLineNumber = dataRowForCoordinate(coordinate)	
-	coordinateType = typeForCoordinateIndex(coordinate)
+	coordinateLineNumber = GAMESS.CoordinateLine(coordinate)	
+	coordinateType = GAMESS.ZMATCoordinateType(coordinate)
 	lineNumber=0
 	flag=False
 	returnLine=""
@@ -202,18 +158,14 @@ def readCoordinateFromLastFile(lastFileName,coordinate):
 		sys.exit()
 	else:	
 		lastOutFile.close()	
-		return returnLine
-
-
-
-				
+		return returnLine		
 
 #increments the coordinate corresponding to coordinateIndex in a row of the DATA group by stepSize
 def lineFromLastOutputWithIncrement(lastInFileName, line, coordinate, stepSize):
 	
 	#finds the type and row
-	type = typeForCoordinateIndex(coordinate)
-	dataRow = dataRowForCoordinate(coordinate)	
+	type = GAMESS.ZMATCoordinateType(coordinate)
+	dataRow = GAMESS.CoordinateLine(coordinate)	
 	
 
 	returnLine = ""
@@ -294,7 +246,6 @@ def lineFromLastOutput(lastInFileName,line,dataRow):
 	return returnLine
 
 def prepareFirstFile(coordinate, stepSize):
-
 	
 	#openFirstFile
 	lastInFile = open(sys.argv[1], 'r')
@@ -305,18 +256,17 @@ def prepareFirstFile(coordinate, stepSize):
 	
 	#find the coordinateRow
 	if (coordinate-1)//3 > 0:
-		coordinateRow = 6 + (coordinate-1)//3
+		coordinateLineNumber = 6 + (coordinate-1)//3
 	elif (coordinate-1)//3 == 0:
 		if coordinate == 1:
-			coordinateRow = 5
+			coordinateLineNumber = 5
 		else:
-			coordinateRow = 6
+			coordinateLineNumber = 6
 	else:
 		sys.exit()
 	
 	#copy file
-	dataRow = 0
-	DET = [0,0,0]
+	dataLineNumber = 0
 	
 	for line in lastInFile:
 		#check for $DATA group
@@ -325,42 +275,25 @@ def prepareFirstFile(coordinate, stepSize):
 		
 		#if line begins $DATA section
 		if dataMatch:
-			dataRow += 1
-		
+			dataLineNumber += 1
 	
 		#check for $END token	
 		datagroup = re.compile(r'\$END')
 		endMatch = datagroup.search(line)
 		
 		#if the $END token is for the $DATA group then stop counting
-		if dataRow  and endMatch:
-			dataRow = 0
-			# This code was removed because it is assumed that the 
-			# starting file is already minimzed and thus must have a
-			# DET group if needed
-			
-			#DET
-			##write the last line and replace it with the DET group
-			#outFile.write(line)
-			#line = DETGroup(DET)
-			#END DET
+		if dataLineNumber  and endMatch:
+			dataLineNumber = 0
 		
 		#if inside the data group	
-		if dataRow:
+		if dataLineNumber:
 
-			if dataRow >= FIRST_COORD_ROW and dataRow != coordinateRow:
-				line = lineFromLastOutput(sys.argv[1], line, dataRow)
+			if dataLineNumber >= FIRST_COORD_ROW and dataLineNumber != coordinateLineNumber:
+				line = lineFromLastOutput(sys.argv[1], line, dataLineNumber)
 			#if we ne to increment a coorinate in this line
-			if dataRow >= FIRST_COORD_ROW and dataRow == coordinateRow:
+			if dataLineNumber >= FIRST_COORD_ROW and dataLineNumber == coordinateLineNumber:
 				line = lineFromLastOutputWithIncrement(sys.argv[1], line, coordinate, stepSize)
-				
-			#DET	
-			#if dataRow >= FIRST_COORD_ROW-1:	
-				#DET = tuple(map(sum,zip(DET,DETParse(line))))	
-			#END DET
-			dataRow += 1
-			
-			
+			dataLineNumber += 1	
 			
 		#Always write the line
 		nextInFile.write(line)
@@ -371,8 +304,6 @@ def prepareFirstFile(coordinate, stepSize):
 	
 	#Freeze coorinate in STATPT
 	nextInFile.write(" $STATPT IFREEZ(1)=" +str(coordinate)+" $END\n")
-	
-	
 	
 	# TODO: v0.2 add $GUESS group
 	#outFile.write(" $GUESS GUESS=MOREAD MORB="+str(orbitalCount)+" $END")
@@ -385,10 +316,10 @@ def prepareNextFile(LastInputFileName, coordinateNumber, stepSize):
 	
 	# open source file and destination file
 	lastInputFile = open(LastInputFileName, 'r')
-	nextInputFile = open(increment(LastInputFileName), 'w')
+	nextInputFile = open(nextInputFleNameFromLastInputFileName(LastInputFileName), 'w')
 	
 	#find the line number for the specified coordinate
-	coordinateLineNumber = dataRowForCoordinate(coordinateNumber)
+	coordinateLineNumber = GAMESS.CoordinateLine(coordinateNumber)
 	
 	#copy file
 	lineNumber = 0
@@ -421,7 +352,7 @@ def prepareNextFile(LastInputFileName, coordinateNumber, stepSize):
 	lastInputFile.close()
 	nextInputFile.close()
 
-	return increment(LastInputFileName)
+	return nextInputFleNameFromLastInputFileName(LastInputFileName)
 	
 def outFile(inFileName):
 	return re.sub(r'.inp', r'.log',inFileName)
@@ -470,8 +401,8 @@ def askForCoordinateStepAndStepCount():
 	
 	
 	#define coordinate type and number
-	number = numberForCoordinateIndex(coordinateIndex)
-	type = typeForCoordinateIndex(coordinateIndex)
+	number = GAMESS.coordinateNumber(coordinateIndex)
+	type = GAMESS.ZMATCoordinateType(coordinateIndex)
 	
 	
 	print("")
@@ -493,13 +424,6 @@ def askForCoordinateStepAndStepCount():
 ##########################################
 ####       BEGIN PROGRAM HERE         ####
 ##########################################
-
-
-		
-		
-			
-	
-
 
 
 #ask which coordinate to scan over
