@@ -100,7 +100,25 @@ def readVECGroupsFromFile(fileName):
 			
 	file.close()
 	return VECList
+
+# Returns the maximum number of orbitals in the VEC group
+# Expects a string containing a $VEC group
+# Returns an int
+def numberOfOrbitalsinVEC(VECGroup):
+	lines = re.split("\n",VECGroup)
+	maxOrbitalNumber=0
+	
+	for line in lines:
+		try:
+			orbitalNumber = int(re.match(" ?(\d+) .*",line).group(1))
+		except:
+			continue
+		if orbitalNumber > maxOrbitalNumber:
+			maxOrbitalNumber = orbitalNumber
+		
+	return maxOrbitalNumber
 			
 			
+
 			
 			

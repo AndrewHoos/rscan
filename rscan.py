@@ -19,6 +19,7 @@ import re
 import operator
 from subprocess import call
 import GAMESS
+from GAMESSFile import *
 
 #CONSTANTS 
 FIRST_COORD_LINE = 5
@@ -33,41 +34,6 @@ def nextInputFleNameFromLastInputFileName(s):
         start, end = match.span(1)
         s = s[:max(end-len(next), start)] + next + s[end:]
     return s
-
-def DETParse(s):
-	element = re.compile((r'([a-zA-Z][a-zA-Z]?)'))
-	match = element.match(s)
-	c = match.group(1).lower()
-	if c == 'h':
-		return (0,1,1)
-	elif c == 'he':
-		return (1,0,0)
-	elif c == 'li':
-		return (1,4,1)
-	elif c == 'be':
-		return (1,4,2)
-	elif c == 'b':
-		return (1,4,3)
-	elif c == 'c':
-		return (1,4,4)
-	elif c == 'n':
-		return (1,4,5)
-	elif c == 'o':
-		return (1,4,6)
-	elif c == 'f':
-		return (1,4,7)
-	elif c == 'cl':
-		return (5,4,7)	
-		
-def DETGroup(DET):
-	outString = " $DET NCORE="
-	outString += str(DET[0])
-	outString += " NACT="
-	outString += str(DET[1])
-	outString += " NELS="
-	outString += str(DET[2])
-	outString += " $END\n"
-	return outString
 
 # takes the name of the last input file opens the corresponding out file and returns the 
 # optimized coordinate
@@ -244,7 +210,7 @@ def lineFromLastOutput(lastInFileName,line,dataRow):
 		returnLine += "\n"
 	return returnLine
 
-def prepareFirstFile(coordinate, stepSize):
+def prepareFirstInput(coordinate, stepSize):
 	
 	#openFirstFile
 	lastInFile = open(sys.argv[1], 'r')
@@ -303,9 +269,13 @@ def prepareFirstFile(coordinate, stepSize):
 	
 	#write the VEC group
 	if re.search("\.inp",sys.argv[1]):
-		nextInFile.write(GAMESS.readVECGroupsFromFile(re.sub("\.inp",".dat",sys.argv[1]))[-1])
+		VEC = GAMESS.readVECGroupsFromFile(re.sub("\.inp",".dat",sys.argv[1]))[-1]
+		nextInFile.write(" $GUESS GUESS=MOREAD NORB="+str(GAMESS.numberOfOrbitalsinVEC(VEC))+" $END\n")
+		nextInFile.write(VEC)
 	else:
-		nextInFile.write(GAMESS.readVECGroupsFromFile(sys.argv[1])[-1])
+		VEC = GAMESS.readVECGroupsFromFile(sys.argv[1])[-1]
+		nextInFile.write(" $GUESS GUESS=MOREAD NORB="+str(GAMESS.numberOfOrbitalsinVEC(VEC))+" $END\n")
+		nextInFile.write(VEC)
 	
 	#close files
 	lastInFile.close()
@@ -360,7 +330,9 @@ def prepareNextFile(LastInputFileName, coordinateNumber, stepSize):
 		nextInputFile.write(line)
 	
 	# write VEC group
-	nextInputFile.write(GAMESS.readVECGroupsFromFile(re.sub("\.inp",".dat",LastInputFileName))[-1])
+	VEC = GAMESS.readVECGroupsFromFile(re.sub("\.inp",".dat",LastInputFileName))[-1]
+	nextInputFile.write(" $GUESS GUESS=MOREAD NORB="+str(GAMESS.numberOfOrbitalsinVEC(VEC))+" $END\n")
+	nextInputFile.write(VEC)
 		
 	lastInputFile.close()
 	nextInputFile.close()
@@ -431,26 +403,78 @@ def askForCoordinateStepAndStepCount():
 	else:
 		return [coordinateIndex,numberOfSteps,stepSize]
 	
+def prepareHessian(inputFileName):
+	# create the GMSFile
+	gFile = GMSFile(inputFileName)
+	# remove STATPT group
+	if "STATPT" in gFile:
+ 		del gFile["STATPT"]
+ 	# Add the FORCE group
+	gms_group = GMSFile.parse_group("$FORCE METHOD=SEMINUM VIBSIZ=0.010000 VIBANL=.TRUE. $END")
+	gFile["FORCE"]=gms_group
+ 	# set the RUNTYP to HESSIAN
+	gFile["CONTRL"]["RUNTYP"]="HESSIAN"
+	# create the new file name
+	hessFileName = re.search("(.*)\.inp",inputFileName).group(1)+"h"+".inp"
+	# write file
+	hessFile = open(hessFileName,"w")
+	hessFile.write(str(gFile))
+	hessFile.close()
+	return hessFileName
+	
+def prepareMP2(inputFileName):
+	# create the GMSFile
+	gFile = GMSFile(inputFileName)
+	# remove STATPT group
+	if "STATPT" in gFile:
+ 		del gFile["STATPT"]
+ 	gFile["CONTRL"]["MPLEVL"]="2"
+ 	# create the new file name
+	MP2FileName = re.search("(.*)\.inp",inputFileName).group(1)+"MP"+".inp"
+	# write file
+	MP2File = open(MP2FileName,"w")
+	MP2File.write(str(gFile))
+	MP2File.close()
+	return MP2FileName
+
+	
 
 ##########################################
 ####       BEGIN PROGRAM HERE         ####
 ##########################################
 
 
+	
 
 #ask which coordinate to scan over
 scan = askForCoordinateStepAndStepCount()
+#prepare first Files
+currentFileName = prepareFirstInput(scan[0], scan[2])
+currentHessian = prepareHessian(currentFileName)
+currentMP2 = prepareMP2(currentFileName)
+#run first files
+runFile(currentFileName)
+runFile(currentHessian)
+runFile(currentMP2)
 
-#prepare and run the first file
-currentFileName = prepareFirstFile(scan[0], scan[2])
+#for each step
+for i in range(scan[1]):
+	#prepare jobs
+	currentFileName = prepareNextFile(currentFileName, scan[0], scan[2])
+	currentHessian = prepareHessian(currentFileName)
+	currentMP2 = prepareMP2(currentFileName)
+	#run jobs
+	runFile(currentFileName)
+	runFile(currentHessian)
+	runFile(currentMP2)
+#create next file to run last hessian and MP2
+currentFileName = prepareNextFile(currentFileName, scan[0], scan[2])
+currentHessian = prepareHessian(currentFileName)
+currentMP2 = prepareMP2(currentFileName)
+runFile(currentHessian)
+runFile(currentMP2)
 
-#runFile(currentFileName)
 
-
-# for each step 
-#for i in range(scan[1]):
-#	currentFileName = prepareNextFile(currentFileName, scan[0], scan[2])
-#	runFile(currentFileName)
 	
 
 	
