@@ -188,7 +188,6 @@ def lineFromLastOutputWithIncrement(lastInFileName, line, coordinate, stepSize):
 		
 	return returnLine
 	
-	
 
 def lineFromLastOutput(lastInFileName,line,dataRow):
 	returnLine = ""
@@ -248,6 +247,10 @@ def prepareFirstInput(coordinate, stepSize):
 		pass
 	gmsFile["VEC"]=VEC.strip()
 	
+	if gmsFile["CONTRL"]["SCFTYP"] == "UHF":
+		del gmsFile["GUESS"]
+	
+	
 	#add the 1 postfix before file type e.g. test.inp > test1.inp
 	nextInFileName = re.sub("\.inp","1.inp",sys.argv[1])
 	#write the file
@@ -257,65 +260,45 @@ def prepareFirstInput(coordinate, stepSize):
 	
 	return nextInFileName
 	
-def prepareNextFile(LastInputFileName, coordinateNumber, stepSize):
+def prepareNextFile(LastInputFileName, coordinate, stepSize):
 	
-	# open source file and destination file
-	lastInputFile = open(LastInputFileName, 'r')
-	nextInputFile = open(nextInputFleNameFromLastInputFileName(LastInputFileName), 'w')
+	#read the first file 
+	gmsFile = GMSFile(LastInputFileName)
 	
-	#copy file
-	coordinateLineNumber = GAMESS.coordinateLine(coordinateNumber)
-	lineNumber = 0
-	vecGroupFlag=False
-	for line in lastInputFile:
-		
-		#do not write VEC group start line
-		if re.search("\$VEC",line):
-			vecGroupFlag = True
-			continue
-		
-		#do not write VEC group end line
-		if vecGroupFlag and re.search("\$END",line):
-			vecFroupFlag = False
-			continue
-		
-		# do not write VEC group line
-		if vecGroupFlag:
-			continue
-		
+	# increase MAXIT
+	gmsFile["CONTRL"]["MAXIT"]=200
+	if "MCSCF" in gmsFile:
+		gmsFile["MCSCF"]["MAXIT"]=200
 	
-		#if process DATA group start line
-		if re.search("\$DATA",line):
-			lineNumber += 1
-		
-		#if process DATA group end line
-		if lineNumber  and re.search("\$END",line):
-			lineNumber = 0
+	# add the freeze point
+	gmsFile["STATPT"]["IFREEZ(1)"] = coordinate
+	
+	#read the optimized geometry
+	gmsFile["DATA"] = GMSFile.parse_group(GMSFileReader.read_data_group(re.sub("\.inp",".log",LastInputFileName)))
+	
+	#increment the coordinate
+	gmsFile["DATA"][coordinate-1] = float(gmsFile["DATA"][coordinate-1]) +stepSize
 
-		#if process DATA group line
-		if lineNumber:
-			
-			if lineNumber >= FIRST_COORD_LINE and lineNumber != coordinateLineNumber:
-				line = lineFromLastOutput(LastInputFileName, line, lineNumber)
-			#if we ne to increment a coorinate in this line
-			if lineNumber >= FIRST_COORD_LINE and lineNumber == coordinateLineNumber:
-				line = lineFromLastOutputWithIncrement(LastInputFileName, line, coordinateNumber, stepSize)
-			lineNumber += 1
-			
-		nextInputFile.write(line)
+	# read the vec
+	VEC=GAMESS.readVECGroupsFromFile(re.sub("\.inp",".dat",sys.argv[1]))[-1]
 	
-	# write VEC group
-	VEC = GAMESS.readVECGroupsFromFile(re.sub("\.inp",".dat",LastInputFileName))[-1]
-	nextInputFile.write(" $GUESS GUESS=MOREAD NORB="+str(GAMESS.numberOfOrbitalsinVEC(VEC))+" $END\n")
-	nextInputFile.write(VEC)
-		
-	lastInputFile.close()
-	nextInputFile.close()
-
+	# add VEC group
+	try:
+		del gmsFile["VEC"]
+	except:
+		pass
+	gmsFile["VEC"]=VEC.strip()
+	
+	#add the 1 postfix before file type e.g. test.inp > test1.inp
+	nextInFileName = nextInputFleNameFromLastInputFileName(LastInputFileName)
+	#write the file
+	nextInFile = open(nextInFileName, 'w')
+	nextInFile.write(str(gmsFile))
+	nextInFile.close()
+	
+	return nextInFileName
+	
 	return nextInputFleNameFromLastInputFileName(LastInputFileName)
-	
-
-	
 
 
 def outFile(inFileName):
@@ -387,7 +370,7 @@ def askForCoordinateStepAndStepCount():
 		return [coordinateIndex,numberOfSteps,stepSize]
 	
 
-def prepareHessian(inputFileName):
+def prepareHessian(inputFileName, coordinate, stepSize):
 	# create the GMSFile
 	
 	gFile = GMSFile(inputFileName)
@@ -399,8 +382,13 @@ def prepareHessian(inputFileName):
 	gFile["FORCE"]=gms_group
  	# set the RUNTYP to HESSIAN
 	gFile["CONTRL"]["RUNTYP"]="HESSIAN"
+	
+	#unstep the coordinate
+	gFile["DATA"][coordinate-1] = float(gFile["DATA"][coordinate-1]) - stepSize
+	
 	# create the new file name
-	hessFileName = re.search("(.*)\.inp",inputFileName).group(1)+"h"+".inp"
+	match = re.search("(.*)(\d+)\.inp",inputFileName)
+	hessFileName = match.group(1)+str(int(match.group(2))-1)+"h"+".inp"
 	# write file
 	hessFile = open(hessFileName,"w")
 	hessFile.write(str(gFile))
@@ -409,15 +397,21 @@ def prepareHessian(inputFileName):
 	
 	
 
-def prepareMP2(inputFileName):
+def prepareMP2(inputFileName, coordinate, stepSize):
 	# create the GMSFile
 	gFile = GMSFile(inputFileName)
 	# remove STATPT group
 	if "STATPT" in gFile:
 		del gFile["STATPT"]
 	gFile["CONTRL"]["MPLEVL"]="2"
+	gFile["CONTRL"]["RUNTYP"]="ENERGY"
+	
+	#unstep the coordinate
+	gFile["DATA"][coordinate-1] = float(gFile["DATA"][coordinate-1]) - stepSize
+	
 	# create the new file name
-	MP2FileName = re.search("(.*)\.inp",inputFileName).group(1)+"MP"+".inp"
+	match = re.search("(.*)(\d+)\.inp",inputFileName)
+	MP2FileName = match.group(1)+str(int(match.group(2))-1)+"MP"+".inp"
 	# write file
 	MP2File = open(MP2FileName,"w")
 	MP2File.write(str(gFile))
@@ -435,28 +429,27 @@ def prepareMP2(inputFileName):
 
 
 #ask which coordinate to scan over
-#scan = askForCoordinateStepAndStepCount()
-scan = [2,1,.1]
+scan = askForCoordinateStepAndStepCount()
+
 #prepare first Files
 currentFileName = prepareFirstInput(scan[0], scan[2])
-currentHessian = prepareHessian(currentFileName)
-currentMP2 = prepareMP2(currentFileName)
 #run first files
 runFile(currentFileName)
-runFile(currentHessian)
-runFile(currentMP2)
+
 
 #for each step
-for i in range(scan[1]):
+for i in range(scan[1]-1):
+	#prepare the next input
 	currentFileName = prepareNextFile(currentFileName, scan[0], scan[2])
-	currentHessian = prepareHessian(currentFileName)
-	currentMP2 = prepareMP2(currentFileName)
-	runFile(currentFileName)
+	#prepare the hess and MP2 for the last step
+	currentHessian = prepareHessian(currentFileName, scan[0], scan[2])
+	currentMP2 = prepareMP2(currentFileName, scan[0], scan[2])
 	runFile(currentHessian)
 	runFile(currentMP2)
+	runFile(currentFileName)
 #create next file to run last hessian and MP2
 currentFileName = prepareNextFile(currentFileName, scan[0], scan[2])
-currentHessian = prepareHessian(currentFileName)
-currentMP2 = prepareMP2(currentFileName)
+currentHessian = prepareHessian(currentFileName, scan[0], scan[2])
+currentMP2 = prepareMP2(currentFileName, scan[0], scan[2])
 runFile(currentHessian)
 runFile(currentMP2)

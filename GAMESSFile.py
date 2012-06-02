@@ -62,17 +62,17 @@ class GMSDATAGroup(list):
 		return_string += self.atoms[0] + "\n"
 		if len(self.atoms) >= 2:
 			return_string += str(self.atoms[1]) + "    " 
-			return_string += str(self.indexes[0][0]) +"    "+ str(self[0]) +"\n"
+			return_string += str(self.indexes[0][0]) +"    "+ str("%.6f" % float(self[0])) +"\n"
 		if len(self.atoms) >= 3:
 			return_string += str(self.atoms[2]) + "    " 
-			return_string += str(self.indexes[1][0]) +"    "+ str(self[1]) +"    " 
-			return_string += str(self.indexes[1][1]) +"    "+ str(self[2]) +"\n"
+			return_string += str(self.indexes[1][0]) +"    "+ str("%.6f" % float(self[1])) +"    " 
+			return_string += str(self.indexes[1][1]) +"    "+ str("%.6f" % float(self[2])) +"\n"
 		if len(self.atoms) >= 4:
 			for i in range(3,len(self.atoms)):
 				return_string += str(self.atoms[i]) + "    " 
-				return_string += str(self.indexes[i-1][0]) +"    "+ str(self[3*i-6]) +"    " 
-				return_string += str(self.indexes[i-1][1]) +"    "+ str(self[3*i-5]) +"    "
-				return_string += str(self.indexes[i-1][2]) +"    "+ str(self[3*i-4]) +"\n"
+				return_string += str(self.indexes[i-1][0]) +"    "+ str("%.6f" % float(self[3*i-6])) +"    " 
+				return_string += str(self.indexes[i-1][1]) +"    "+ str("%.6f" % float(self[3*i-5])) +"    "
+				return_string += str(self.indexes[i-1][2]) +"    "+ str("%.6f" % float(self[3*i-4])) +"\n"
 		return_string +=" $END"
 		return return_string
 		

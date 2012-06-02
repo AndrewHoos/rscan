@@ -26,7 +26,7 @@ class GMSFileReader:
 			
 			dashed_line_count=0
 			coordinateLineCount=0
-			
+			data_line = None		
 			for line in gms_file:				
 				# Find the title
 				if found_run_title and not re.search("-+",line.strip()):
@@ -42,7 +42,6 @@ class GMSFileReader:
 				# end point group
 					
 				# Find coordinates
-				
 				if mode == "UNIQUE":
 					pass
 				elif mode == "ZMAT":	
@@ -62,7 +61,6 @@ class GMSFileReader:
 								regex_groups = re.search(GMSFileReader.INTERNAL_COORD_REGEX,line.strip())
 								if regex_groups:
 									regex_groups = list(regex_groups.groups())
-									print(regex_groups)
 									atom_number = int(regex_groups[2])-1
 									if regex_groups[5]:
 										data_line[atom_number]+="    "+regex_groups[5]
