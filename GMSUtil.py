@@ -2,7 +2,7 @@ import re
 
 class GMSFileReader:
 	CART_OUT_REGEX = "(.*) +(\d+\.\d+) +(-?\d+\.\d+) +(-?\d+\.\d+) +(-?\d+\.\d+)"
-	INTERNAL_COORD_REGEX="(\d+) +([A-Z]+) +(\d+) +(\d+)? +(\d+)? +(\d+)? +(-?\d+\.\d+) +(-?\d+\.\d+)"
+	INTERNAL_COORD_REGEX="(\d+) +([A-Z]+) +(\d+) +(\d+) +(\d+)? +(\d+)? +(-?\d+\.\d+) +(-?\d+\.\d+)"
 	SCR_PATH="/Users/mac/Desktop/gamess/scr/"
 	
 	
