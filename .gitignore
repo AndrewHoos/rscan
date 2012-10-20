@@ -1,0 +1,12 @@
+
+test/.DS_Store
+
+.DS_Store
+
+ .log
+
+__pycache__/GAMESS.cpython-32.pyc
+
+__pycache__/GAMESSFile.cpython-32.pyc
+
+__pycache__/GMSUtil.cpython-32.pyc
