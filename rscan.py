@@ -354,7 +354,7 @@ for i in range(scan[1]-1):
   currentHessian = prepareHessian(currentFileName, scan[0], scan[2])
   currentMP2 = prepareMP2(currentFileName, scan[0], scan[2])
   runFile(currentHessian)
-  #runFile(currentMP2)
+  runFile(currentMP2)
   runFile(currentFileName)
 #create next file to run last hessian and MP2
 currentFileName = prepareNextFile(currentFileName, scan[0], scan[2])
